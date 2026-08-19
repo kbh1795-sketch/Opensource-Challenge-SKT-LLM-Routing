@@ -3,7 +3,7 @@ SPDX-FileCopyrightText: Copyright 2026 SK TELECOM CO., LTD.
 SPDX-License-Identifier: Apache-2.0
 -->
 
-# Semantic Lagrangian Router
+# Semantic Lagrangian LLM Router
 
 SK Telecom **Efficient LLM Routing Challenge**를 위한 예산 제약형 프롬프트
 라우터입니다. 프롬프트 내용만으로 `ax31-light`, `ax31`, `axk1-think` 중
