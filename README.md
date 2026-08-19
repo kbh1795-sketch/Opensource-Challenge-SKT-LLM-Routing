@@ -3,7 +3,7 @@ SPDX-FileCopyrightText: Copyright 2026 SK TELECOM CO., LTD.
 SPDX-License-Identifier: Apache-2.0
 -->
 
-# Efficient LLM Routing Challenge
+# 오픈소스 개발자대회 프로젝트
 
 **프롬프트 난이도·특성에 따라 최적 모델을 선택하는 compute-efficient routing
 오픈소스 라우터 개발 챌린지**
