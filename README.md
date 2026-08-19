@@ -3,10 +3,9 @@ SPDX-FileCopyrightText: Copyright 2026 SK TELECOM CO., LTD.
 SPDX-License-Identifier: Apache-2.0
 -->
 
-# 오픈소스 개발자대회 프로젝트
+# 오픈소스 개발자대회 프로젝트_SKT 지정과제
 
-**프롬프트 난이도·특성에 따라 최적 모델을 선택하는 compute-efficient routing
-오픈소스 라우터 개발 챌린지**
+**예산제약 하 프롬프트 난이도·특성에 따라 최적 모델을 선택하는 LLM Routing 라우터**
 
 이 과제에서는 입력 프롬프트의 내용만 보고 다음 세 평가용 모델 프로필 중 하나를
 선택하는 라우터를 만듭니다.
