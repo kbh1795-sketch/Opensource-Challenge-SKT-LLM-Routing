@@ -1,0 +1,47 @@
+{
+  "schema_version": 1,
+  "report_type": "semantic-lagrangian-public-train-dev-summary",
+  "official_repository_commit": "3cccbf602077a846c13b2cb1356eee1559a631db",
+  "policy_id": "ossp-2026-prompt-router-v1",
+  "artifact_sha256": "98b7be45f3e81c08b812b839023b1547a16b4ffc8598af63aaa9933bf1e6a052",
+  "train_oof_regression_metrics": {
+    "ax31-light": {
+      "score": {"mae": 0.3443542097634884, "rmse": 0.41101911473953223, "r2": 0.20849496263585288},
+      "output_tokens": {"mae": 342.5247335530254, "rmse": 1899.4665540208975, "r2": 0.11286193305233772},
+      "input_tokens": {"mae": 286.34180674934163, "rmse": 1283.9326979909247, "r2": 0.9702260641924426}
+    },
+    "ax31": {
+      "score": {"mae": 0.3092873519893385, "rmse": 0.39078884769087163, "r2": 0.22110312190540393},
+      "output_tokens": {"mae": 291.9455682412349, "rmse": 1665.2241734744275, "r2": 0.1607167502441198},
+      "input_tokens": {"mae": 287.06556746614467, "rmse": 1291.3387607537115, "r2": 0.9697958982633322}
+    },
+    "axk1-think": {
+      "score": {"mae": 0.23015937700726188, "rmse": 0.3295580373053895, "r2": 0.1820186974858521},
+      "output_tokens": {"mae": 2464.7922287373804, "rmse": 8082.486145396084, "r2": 0.13054718003740695},
+      "input_tokens": {"mae": 267.19515318238405, "rmse": 1210.2327297604636, "r2": 0.9699026943564891}
+    }
+  },
+  "routing_results": {
+    "train": {
+      "episodes": 1760,
+      "final_score": "0.686136363636",
+      "tiers": {
+        "fast": {"quality_score": "0.658522727273", "total_cost": "10.093855125", "budget_ratio": "1.173187608920", "budget_limit_ratio": "1.25", "budget_passed": true},
+        "balanced": {"quality_score": "0.684375", "total_cost": "14.48937247", "budget_ratio": "1.684069370159", "budget_limit_ratio": "2.0", "budget_passed": true},
+        "premium": {"quality_score": "0.724715909091", "total_cost": "25.435604008", "budget_ratio": "2.956326901669", "budget_limit_ratio": "4.0", "budget_passed": true}
+      },
+      "local_runtime_seconds": {"fast": 12.568, "balanced": 12.790, "premium": 12.717}
+    },
+    "dev": {
+      "episodes": 880,
+      "final_score": "0.689318181818",
+      "tiers": {
+        "fast": {"quality_score": "0.660511363636", "total_cost": "5.376827014", "budget_ratio": "1.227185980005", "budget_limit_ratio": "1.25", "budget_passed": true},
+        "balanced": {"quality_score": "0.689488636364", "total_cost": "7.303652704", "budget_ratio": "1.666957143653", "budget_limit_ratio": "2.0", "budget_passed": true},
+        "premium": {"quality_score": "0.727556818182", "total_cost": "15.865380605", "budget_ratio": "3.621052452534", "budget_limit_ratio": "4.0", "budget_passed": true}
+      },
+      "local_runtime_seconds": {"fast": 6.392, "balanced": 6.497, "premium": 6.762}
+    }
+  },
+  "runtime_environment": "Windows development host; not official linux/arm64 container"
+}

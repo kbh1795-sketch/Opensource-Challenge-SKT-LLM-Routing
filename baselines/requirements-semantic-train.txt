@@ -1,0 +1,6 @@
+# SPDX-FileCopyrightText: Copyright 2026 SK TELECOM CO., LTD.
+# SPDX-License-Identifier: Apache-2.0
+
+numpy==2.3.3
+scipy==1.16.2
+scikit-learn==1.7.2

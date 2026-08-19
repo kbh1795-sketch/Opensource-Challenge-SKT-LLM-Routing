@@ -20,6 +20,95 @@ SPDX-License-Identifier: Apache-2.0
 따라서 문항마다 프롬프트 내용으로 모델 하나를 한 번 선택하며, 실시간으로
 모델 답변을 호출하거나 여러 답변을 비교하는 단계는 없습니다.
 
+## 이 fork의 제출 알고리즘
+
+이 fork는 여러 최적화기를 섞지 않고 **한 가지 라우터**만 실행합니다.
+
+1. 프롬프트를 단어 1-gram·2-gram TF-IDF로 바꾸고, Train에서 고정한
+   TruncatedSVD로 64차원 LSA 의미 임베딩을 만듭니다.
+2. 길이·언어·수학·코드·질문·지시문·난이도 관련 수치 46개를 붙여 최종
+   110차원 특징을 만듭니다.
+3. 각 공식 모델에 대해 Ridge 회귀로 예상 점수, 입력 토큰, 출력 토큰을
+   각각 예측합니다.
+4. 공식 `input_token_rate`와 `output_token_rate`로 예상 비용을 계산합니다.
+5. 각 프롬프트에서 `예상 점수 - λ × 예상 비용`이 가장 큰 모델을 고르고,
+   이분 탐색으로 예산을 만족하는 λ를 찾습니다. 즉 MCKP의 Lagrangian
+   relaxation을 최종 라우팅 알고리즘으로 사용합니다.
+
+실행 중에는 표준 라이브러리만 사용하며 네트워크, GPU, 외부 임베딩 API나
+모델 다운로드가 필요하지 않습니다. `episode_id`, 입력 순서, `split`은 특징에
+쓰지 않습니다. 학습 산출물과 재현 정보는
+[`SEMANTIC_LAGRANGIAN.md`](docs/SEMANTIC_LAGRANGIAN.md)에 기록했습니다.
+
+### 정확한 재현·검증 순서
+
+아래 명령은 저장소 루트에서 순서대로 실행합니다. 먼저 공식 안내대로 공개
+Train/Dev 입력을 materialize합니다.
+
+```console
+python3 -m venv .venv-data
+.venv-data/bin/pip install -r data/sources/requirements-materialize-public-data.txt
+.venv-data/bin/python tools/materialize_public_data.py
+```
+
+학습 전용 환경을 만든 뒤, **공식 Train만** 사용해 동결 artifact를 재생성합니다.
+
+```console
+python3 -m venv .venv-train
+.venv-train/bin/pip install -r baselines/requirements-semantic-train.txt
+PYTHONPATH=src .venv-train/bin/python tools/train_semantic_lagrangian.py \
+  --input data/materialized/train/inputs.json \
+  --outcomes data/train/outcomes.json \
+  --policy configs/routing-policy.v1.json \
+  --artifact src/ossp_router/resources/semantic-lagrangian.v1.json \
+  --report build/semantic-lagrangian-train-report.json
+```
+
+Dev에서 공식 형식의 등급별 파일을 만들고 실제 outcome으로 로컬 점검합니다.
+
+```console
+for tier in fast balanced premium; do
+  PYTHONPATH=src python3 -m ossp_router.semantic_lagrangian \
+    --input data/materialized/dev/inputs.json \
+    --tier "$tier" \
+    --output "build/semantic-dev-submissions/$tier.json"
+done
+
+PYTHONPATH=src python3 -m ossp_router.cli self-check \
+  --input data/materialized/dev/inputs.json \
+  --outcomes data/dev/outcomes.json \
+  --submissions build/semantic-dev-submissions \
+  --policy configs/routing-policy.v1.json \
+  --report build/semantic-lagrangian-dev-report.json
+
+PYTHONPATH=src python3 -m unittest discover -s tests -p 'test_*.py'
+```
+
+최종 제출 이미지는 같은 코드 커밋에서 `linux/arm64`로 빌드하고 검사합니다.
+
+```console
+docker build --pull --platform linux/arm64 \
+  --file container/Dockerfile --tag my-router:check .
+
+PYTHONPATH=src python3 tools/check_runtime.py \
+  --image my-router:check \
+  --report build/runtime-check-report.json
+```
+
+이미지를 공개 레지스트리에 push한 후에만 실제 URL·40자리 코드 커밋·이미지
+다이제스트를 넣어 기술 제출 파일을 만듭니다. 이 세 값은 임의로 채우지 않습니다.
+
+```console
+python3 tools/create_technical_submission.py \
+  --repository-url https://github.com/ACCOUNT/REPOSITORY \
+  --commit-sha 40_HEX_CODE_COMMIT \
+  --image-digest REGISTRY/REPOSITORY@sha256:64_HEX_DIGEST
+python3 tools/validate_technical_submission.py
+```
+
+코드 커밋에서 이미지를 만든 뒤 `submission-ossp-skt.json`만 별도 커밋하는
+공식 순서를 지켜야 합니다.
+
 ## 참가 순서
 
 1. 이 저장소를 참가 팀의 GitHub 계정이나 조직으로 fork합니다.

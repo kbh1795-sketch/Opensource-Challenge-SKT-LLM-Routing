@@ -14,6 +14,7 @@ path = [
   "baselines/*.json",
   "configs/*.json",
   "docs/runtime-benchmark.json",
+  "reports/*.json",
   "data/*.json",
   "data/dev/aime-selection.json",
   "data/dev/outcomes.json",
@@ -54,6 +55,7 @@ path = [
   "docs/SCORING.md",
   "docs/SUBMISSION.md",
   "docs/runtime-benchmark.md",
+  "docs/SEMANTIC_LAGRANGIAN.md",
 ]
 precedence = "override"
 SPDX-FileCopyrightText = "Copyright 2026 SK TELECOM CO., LTD."
