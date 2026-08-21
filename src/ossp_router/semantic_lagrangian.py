@@ -1,7 +1,7 @@
 # SPDX-FileCopyrightText: Copyright 2026 SK TELECOM CO., LTD.
 # SPDX-License-Identifier: Apache-2.0
 
-"""Submission router: frozen LSA semantic embedding + Lagrangian selection."""
+"""Submission router: frozen LSA representation + Lagrangian selection."""
 
 from __future__ import annotations
 
@@ -33,7 +33,6 @@ from .protocol import (
     parse_submission,
     submission_to_dict,
 )
-
 MODEL_IDS = ("ax31-light", "ax31", "axk1-think")
 _TOKEN = re.compile(r"(?u)\b\w\w+\b")
 _WORD = re.compile(r"[A-Za-z가-힣]+")
@@ -69,6 +68,11 @@ _DIFFICULTY_PATTERNS = (
     re.compile(r"\b(?:compare|trade-?off|pros and cons|difference)\b|(?:비교|장단점|차이|트레이드오프)", re.I),
 )
 _ARTIFACT = None
+_HEAD_SPECS = tuple(
+    (target, model_id)
+    for model_id in MODEL_IDS
+    for target in ("score_heads", "output_heads", "input_heads")
+)
 
 
 def _ratio(numerator: float, denominator: float) -> float:
@@ -87,15 +91,23 @@ def _episode_text(episode: Episode) -> tuple[str, int]:
 
 def _numeric_features(text: str, message_count: int) -> list[float]:
     chars = len(text)
-    nonspace = sum(not character.isspace() for character in text)
+    nonspace = chars - sum(map(str.isspace, text))
     words = _WORD.findall(text)
-    punctuation = sum(character in string.punctuation for character in text)
-    symbols = sum(unicodedata.category(character).startswith("S") for character in text)
+    punctuation = sum(map(text.count, string.punctuation))
+    symbols = 0
+    hangul = 0
+    latin = 0
+    cjk = 0
+    category = unicodedata.category
+    for character in text:
+        symbols += category(character).startswith("S")
+        hangul += "\uac00" <= character <= "\ud7a3"
+        latin += "a" <= character.lower() <= "z"
+        cjk += "\u4e00" <= character <= "\u9fff"
     math_count = len(_MATH.findall(text))
     code_count = len(_CODE.findall(text))
-    hangul = sum("\uac00" <= character <= "\ud7a3" for character in text)
-    latin = sum("a" <= character.lower() <= "z" for character in text)
-    cjk = sum("\u4e00" <= character <= "\u9fff" for character in text)
+    digit_count = sum(map(str.isdigit, text))
+    uppercase_count = sum(map(str.isupper, text))
     base = [
         chars,
         len(text.encode("utf-8")),
@@ -104,7 +116,7 @@ def _numeric_features(text: str, message_count: int) -> list[float]:
         len(_SENTENCE.findall(text)),
         text.count("\n") + 1,
         message_count,
-        sum(character.isdigit() for character in text),
+        digit_count,
         len(_NUMBER.findall(text)),
         punctuation,
         _ratio(punctuation, nonspace),
@@ -117,7 +129,7 @@ def _numeric_features(text: str, message_count: int) -> list[float]:
         _ratio(hangul, nonspace),
         _ratio(latin, nonspace),
         _ratio(cjk, nonspace),
-        _ratio(sum(character.isupper() for character in text), nonspace),
+        _ratio(uppercase_count, nonspace),
         _ratio(sum(len(word) for word in words), len(words)),
         len(_QUESTION.findall(text)),
         len(_INSTRUCTION.findall(text)),
@@ -153,7 +165,13 @@ def _load_artifact() -> dict:
     return _ARTIFACT
 
 
-def _semantic_embedding(text: str, artifact: dict) -> list[float]:
+def _linear(head: dict, features: list[float]) -> float:
+    return head["intercept"] + math.fsum(
+        coefficient * value for coefficient, value in zip(head["coefficients"], features)
+    )
+
+
+def _semantic_weights(text: str, artifact: dict) -> dict[int, float]:
     semantic = artifact["semantic_embedding"]
     vocabulary = semantic["vocabulary"]
     tokens = _TOKEN.findall(text.lower())
@@ -172,44 +190,190 @@ def _semantic_embedding(text: str, artifact: dict) -> list[float]:
     }
     norm = math.sqrt(math.fsum(value * value for value in weighted.values()))
     if norm > 0:
-        weighted = {index: value / norm for index, value in weighted.items()}
+        return {index: value / norm for index, value in weighted.items()}
+    return weighted
+
+
+def _semantic_embedding(text: str, artifact: dict) -> list[float]:
+    semantic = artifact["semantic_embedding"]
     embedding = [0.0] * semantic["dimensions"]
     components = semantic["components_by_feature"]
-    for index, value in weighted.items():
-        component = components[index]
-        for dimension, coefficient in enumerate(component):
+    for index, value in _semantic_weights(text, artifact).items():
+        for dimension, coefficient in enumerate(components[index]):
             embedding[dimension] += value * coefficient
     return embedding
 
 
-def _linear(head: dict, features: list[float]) -> float:
-    return head["intercept"] + math.fsum(
-        coefficient * value for coefficient, value in zip(head["coefficients"], features)
-    )
+def _finish_predictions(raw_values: list[float], artifact: dict):
+    scores = []
+    outputs = []
+    inputs = []
+    for index, model_id in enumerate(MODEL_IDS):
+        score, output_log, input_log = raw_values[index * 3 : index * 3 + 3]
+        scores.append(min(1.0, max(0.0, score)))
+        output_log = min(
+            math.log1p(artifact["output_caps"][model_id]), max(0.0, output_log)
+        )
+        input_log = min(
+            math.log1p(artifact["input_caps"][model_id]), max(0.0, input_log)
+        )
+        outputs.append(math.expm1(output_log))
+        inputs.append(max(1.0, math.expm1(input_log)))
+    return scores, outputs, inputs
 
 
-def _predict_one(text: str, message_count: int, artifact: dict):
+def _predict_one_reference(
+    text: str,
+    message_count: int,
+    artifact: dict,
+):
     raw = _numeric_features(text, message_count) + _semantic_embedding(text, artifact)
     scaled = [
         (value - mean) / scale
         for value, mean, scale in zip(raw, artifact["feature_mean"], artifact["feature_scale"])
     ]
-    scores = []
-    outputs = []
-    inputs = []
+    raw_values = []
     for model_id in MODEL_IDS:
-        scores.append(min(1.0, max(0.0, _linear(artifact["score_heads"][model_id], scaled))))
-        output_log = min(
-            math.log1p(artifact["output_caps"][model_id]),
-            max(0.0, _linear(artifact["output_heads"][model_id], scaled)),
+        raw_values.extend(
+            _linear(artifact[target][model_id], scaled)
+            for target in ("score_heads", "output_heads", "input_heads")
         )
-        input_log = min(
-            math.log1p(artifact["input_caps"][model_id]),
-            max(0.0, _linear(artifact["input_heads"][model_id], scaled)),
+    return _finish_predictions(raw_values, artifact)
+
+
+def _build_runtime_projection(artifact: dict) -> dict:
+    """Fuse StandardScaler, LSA, and Ridge linear maps without changing the model."""
+    numeric_count = artifact["numeric_feature_count"]
+    means = artifact["feature_mean"]
+    scales = artifact["feature_scale"]
+    components = artifact["semantic_embedding"]["components_by_feature"]
+    intercepts = []
+    numeric_coefficients = []
+    semantic_coefficients_by_head = []
+    for target, model_id in _HEAD_SPECS:
+        head = artifact[target][model_id]
+        scaled_coefficients = [
+            coefficient / scale
+            for coefficient, scale in zip(head["coefficients"], scales)
+        ]
+        intercepts.append(
+            head["intercept"]
+            - math.fsum(
+                coefficient * mean
+                for coefficient, mean in zip(scaled_coefficients, means)
+            )
         )
-        outputs.append(math.expm1(output_log))
-        inputs.append(max(1.0, math.expm1(input_log)))
-    return scores, outputs, inputs
+        numeric_coefficients.append(scaled_coefficients[:numeric_count])
+        latent_coefficients = scaled_coefficients[numeric_count:]
+        semantic_coefficients_by_head.append(
+            [
+                math.fsum(
+                    coefficient * component
+                    for coefficient, component in zip(
+                        latent_coefficients, feature_components
+                    )
+                )
+                for feature_components in components
+            ]
+        )
+    return {
+        "method": "algebraically fused StandardScaler, LSA, and Ridge linear maps",
+        "head_order": [
+            {"target": target, "model_id": model_id}
+            for target, model_id in _HEAD_SPECS
+        ],
+        "intercepts": intercepts,
+        "numeric_coefficients": numeric_coefficients,
+        "semantic_coefficients_by_head": semantic_coefficients_by_head,
+    }
+
+
+def _predict_one(
+    text: str,
+    message_count: int,
+    artifact: dict,
+):
+    projection = artifact.get("runtime_projection")
+    if projection is None:
+        return _predict_one_reference(text, message_count, artifact)
+    numeric = _numeric_features(text, message_count)
+    weighted_items = tuple(_semantic_weights(text, artifact).items())
+    raw_values = [
+        intercept
+        + math.fsum(
+            coefficient * value
+            for coefficient, value in zip(numeric_coefficients, numeric)
+        )
+        + math.fsum(
+            semantic_coefficients[index] * value
+            for index, value in weighted_items
+        )
+        for intercept, numeric_coefficients, semantic_coefficients in zip(
+            projection["intercepts"],
+            projection["numeric_coefficients"],
+            projection["semantic_coefficients_by_head"],
+        )
+    ]
+    return _finish_predictions(raw_values, artifact)
+
+
+def _predict_episode(payload: tuple[str, int], artifact: dict):
+    return _predict_one(payload[0], payload[1], artifact)
+
+
+def _predict_batch(episodes: Sequence[Episode], artifact: dict):
+    payloads = [_episode_text(episode) for episode in episodes]
+    if os.name != "posix" or len(payloads) < 64:
+        return [_predict_episode(payload, artifact) for payload in payloads]
+
+    # The official image permits two CPUs. Forking avoids serializing the large
+    # frozen artifact and keeps the runtime dependency-free.
+    import pickle
+    import tempfile
+
+    midpoint = (len(payloads) + 1) // 2
+    chunks = (payloads[:midpoint], payloads[midpoint:])
+    children = []
+    paths = []
+    try:
+        for chunk in chunks:
+            descriptor, path = tempfile.mkstemp(prefix="ossp-lsa-", suffix=".pickle")
+            os.close(descriptor)
+            paths.append(path)
+            process_id = os.fork()
+            if process_id == 0:
+                try:
+                    with open(path, "wb") as stream:
+                        pickle.dump(
+                            [_predict_episode(payload, artifact) for payload in chunk],
+                            stream,
+                            protocol=pickle.HIGHEST_PROTOCOL,
+                        )
+                    os._exit(0)
+                except BaseException:
+                    os._exit(1)
+            children.append(process_id)
+
+        statuses = [os.waitpid(process_id, 0)[1] for process_id in children]
+        children.clear()
+        if any(status != 0 for status in statuses):
+            raise RuntimeError("parallel LSA prediction worker failed")
+        predictions = []
+        for path in paths:
+            with open(path, "rb") as stream:
+                predictions.extend(pickle.load(stream))
+        return predictions
+    finally:
+        for process_id in children:
+            try:
+                os.waitpid(process_id, 0)
+            except ChildProcessError:
+                pass
+        for path in paths:
+            try:
+                os.unlink(path)
+            except FileNotFoundError:
+                pass
 
 
 def _predicted_costs(
@@ -275,7 +439,7 @@ def make_submission(inputs: InputBatch, policy: RoutingPolicy, tier: str) -> Sub
     artifact = _load_artifact()
     if artifact["policy_id"] != policy.policy_id:
         raise ProtocolError("학습 artifact와 비용 정책의 policy_id가 다릅니다.")
-    predictions = [_predict_one(*_episode_text(episode), artifact) for episode in inputs.episodes]
+    predictions = _predict_batch(inputs.episodes, artifact)
     scores = [item[0] for item in predictions]
     outputs = [item[1] for item in predictions]
     input_tokens = [item[2] for item in predictions]

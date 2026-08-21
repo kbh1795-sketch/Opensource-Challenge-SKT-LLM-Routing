@@ -108,6 +108,7 @@ LOCAL_GENERATED_PREFIXES = (
     (".ruff_cache",),
     (".venv",),
     (".venv-data",),
+    (".venv-train",),
     ("build",),
     ("dist",),
     ("data", "cache"),
@@ -618,6 +619,7 @@ class RepositoryPolicyTest(unittest.TestCase):
         for pattern in (
             "/.local-data/",
             "/.venv-data/",
+            "/.venv-train/",
             "/operator-state/",
             "/data/cache/",
             "/data/materialized/",

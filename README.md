@@ -3,7 +3,7 @@ SPDX-FileCopyrightText: Copyright 2026 SK TELECOM CO., LTD.
 SPDX-License-Identifier: Apache-2.0
 -->
 
-# Semantic Lagrangian LLM Router
+# LSA Lagrangian LLM Router
 
 SK Telecom **Efficient LLM Routing Challenge**를 위한 예산 제약형 프롬프트
 라우터입니다. 프롬프트 내용만으로 `ax31-light`, `ax31`, `axk1-think` 중
@@ -15,19 +15,19 @@ Lagrangian MCKP** 한 가지로 고정했습니다.
 
 ## 한눈에 보기
 
-| 항목      | 구현                                                  |
-| ------- | --------------------------------------------------- |
-| 문제 정의   | 프롬프트마다 모델 하나를 선택하는 Multiple-Choice Knapsack Problem |
-| 의미 표현   | TF-IDF 1·2-gram 8,000개 → TruncatedSVD 64차원 LSA      |
-| 수치 특징   | 길이·언어·수학·코드·질문·지시·난이도 특징 46개                        |
-| 최종 특징   | 110차원                                               |
-| 예측 모델   | 모델별 Ridge 회귀: 점수, 입력 토큰, 출력 토큰                      |
-| 라우팅     | `예상 점수 - λ × 예상 비용` 최대화, λ 이분 탐색                    |
-| 예산 안전장치 | 공식 등급별 증분 예산의 85% 사용                                |
-| 학습 데이터  | 공식 Train 1,760문항만 사용                                |
-| 실행 의존성  | Python 표준 라이브러리만 사용                                 |
-| 실행 환경   | 네트워크·GPU 불필요, `linux/arm64` 컨테이너                    |
-| 고정 seed | `20260819`                                          |
+| 항목 | 구현 |
+| --- | --- |
+| 문제 정의 | 프롬프트마다 모델 하나를 선택하는 Multiple-Choice Knapsack Problem |
+| 의미 표현 | TF-IDF 1·2-gram 8,000개 → TruncatedSVD 64차원 LSA |
+| 수치 특징 | 길이·언어·수학·코드·질문·지시·난이도 특징 46개 |
+| 최종 특징 | 110차원 |
+| 예측 모델 | 모델별 Ridge 회귀: 점수, 입력 토큰, 출력 토큰 |
+| 라우팅 | `예상 점수 - λ × 예상 비용` 최대화, λ 이분 탐색 |
+| 예산 안전장치 | 공식 등급별 증분 예산의 85% 사용 |
+| 학습 데이터 | 공식 Train 1,760문항만 사용 |
+| 실행 의존성 | Python 표준 라이브러리만 사용 |
+| 실행 환경 | 네트워크·GPU 불필요, `linux/arm64` 컨테이너 |
+| 고정 seed | `20260819` |
 
 평가 측이 확인할 파일은 다음과 같습니다.
 
@@ -72,10 +72,10 @@ router-run \
 
 ## 프롬프트 특징은 어떻게 만들어지는가
 
-이 구현의 `semantic embedding`은 외부 API나 사전학습 Transformer 모델을
-사용하지 않습니다. 공식 Train 프롬프트에서 직접 학습한 **LSA(Latent
-Semantic Analysis)** 표현입니다. 따라서 평가 시 인터넷이나 GPU가 필요하지
-않으며, Train에서 동결한 어휘·IDF·SVD 행렬을 그대로 사용합니다.
+이 구현은 사전학습 신경망 기반 semantic embedding을 사용하지 않습니다.
+대신 공식 Train 프롬프트에서 직접 학습한 **LSA(Latent Semantic Analysis)**
+잠재 표현을 사용합니다. 따라서 평가 시 인터넷이나 GPU가 필요하지 않으며,
+Train에서 동결한 어휘·IDF·SVD 행렬을 그대로 사용합니다.
 
 ### 1. 입력 텍스트 구성
 
@@ -83,7 +83,7 @@ Semantic Analysis)** 표현입니다. 따라서 평가 시 인터넷이나 GPU�
 메시지를 `<role>\ncontent` 형태로 입력 순서대로 연결합니다. `episode_id`,
 `split`, 정답 및 outcome은 특징에 넣지 않습니다.
 
-### 2. 64차원 의미 임베딩
+### 2. 64차원 LSA 잠재 표현
 
 Train 텍스트를 소문자 단어로 나눈 뒤 한 단어(unigram)와 연속한 두 단어
 (bigram)를 만듭니다. 두 문항 이상에 나온 표현 중 최대 8,000개를 남겨
@@ -92,7 +92,7 @@ TF-IDF 벡터로 바꿉니다. 자주 반복되는 단어의 영향은 로그로
 
 TF-IDF는 단어가 정확히 일치하는지만 보여 주는 고차원 희소 벡터입니다.
 여기에 TruncatedSVD를 적용해 함께 등장하는 표현의 패턴을 64개 축으로
-압축합니다. 이 64개 값이 LSA 의미 임베딩입니다. 예를 들어 코드 관련
+압축합니다. 이 64개 값이 LSA 잠재 표현입니다. 예를 들어 코드 관련
 표현들이 자주 함께 등장하면 하나 이상의 잠재 축에서 비슷한 값을 갖게
 되어, 단순 길이만으로는 구분하기 어려운 프롬프트 종류를 나타낼 수 있습니다.
 
@@ -106,7 +106,7 @@ Train prompt
 
 ### 3. 46차원 구조·난이도 특징
 
-의미 임베딩과 별도로 문자·UTF-8 byte·단어·문장·행·메시지 수, 숫자와
+LSA 표현과 별도로 문자·UTF-8 byte·단어·문장·행·메시지 수, 숫자와
 문장부호 비율, 수학·코드 기호 및 키워드, 한글·영문·CJK 비율, 질문·지시문
 형태, task·난이도 단서를 46개 숫자로 계산합니다. 이 값은 프롬프트의 주제뿐
 아니라 길이와 답변 난이도에 따른 토큰 사용량 차이를 예측하는 데 쓰입니다.
@@ -133,8 +133,19 @@ c_hat_im = alpha_m × P_hat_im + beta_m × O_hat_im
 
 `alpha_m`, `beta_m`는 아래 표의 공식 비용 계수입니다. 이렇게 얻은 문항별
 예상 점수와 예상 비용 전체를 Lagrangian 라우터가 한꺼번에 받아, 해당 등급의
-총예산 안에서 최종 `model_id`를 정합니다. 즉 semantic embedding 자체가
-모델을 바로 고르는 것이 아니라, **회귀 예측의 입력 특징**으로 사용됩니다.
+총예산 안에서 최종 `model_id`를 정합니다. 즉 LSA 표현 자체가 모델을 바로
+고르는 것이 아니라, **회귀 예측의 입력 특징**으로 사용됩니다.
+
+### 5. 실행시간 최적화
+
+학습 모델과 선택식은 바꾸지 않고 `StandardScaler → 64차원 LSA → Ridge`의
+연속된 선형변환을 학습 artifact에서 미리 곱해 둡니다. 평가 시에는 같은
+110차원 모델의 결과를 직접 계산하므로 반복 곱셈만 줄어듭니다. 프롬프트별
+특징·회귀 예측은 공식 2코어에 맞춰 두 자식 프로세스가 절반씩 처리하고,
+부모 프로세스가 기존 Lagrangian 최적화를 한 번 수행합니다. 공유 IPC는 쓰지
+않으며 허용된 `/tmp`만 사용합니다.
+
+최적화 전후 공개 Dev의 문항별 `model_id`, 점수와 비용은 모두 동일합니다.
 
 ## 알고리즘
 
@@ -208,6 +219,8 @@ MAE·RMSE·R²와 모델 선택 수는
 - 문항 ID 변경 및 입력 순서 변경 감사 통과
 - `linux/arm64` 이미지 빌드 및 toy 입력 컨테이너 smoke test 통과
 - GHCR 이미지의 비로그인 ARM64 pull 확인
+- 공식 자원 제한을 적용한 x86_64 상 ARM64 에뮬레이션에서 Dev 등급별
+  `62.38`~`63.06`초로 90초 제한 통과
 
 공개 데이터 결과는 비공개 평가셋의 점수나 예산 통과를 보장하지 않습니다.
 
@@ -246,12 +259,33 @@ PYTHONPATH=src python3 -m ossp_router.cli self-check \
   --report build/semantic-lagrangian-dev-report.json
 ```
 
+시연영상에서는 먼저 현재 소스로 `lagrangian-router:submission` 이미지를 만든
+뒤 아래 스크립트를 실행하면 됩니다. 이 스크립트는 영상에서 세 등급 결과를
+한 화면에 비교하기 위해 순차 실행하는 도구이며, 공식 평가는 등급별로 각각
+독립 실행됩니다.
+
+```console
+docker build --platform linux/arm64 \
+  --file container/Dockerfile \
+  --tag lagrangian-router:submission .
+
+bash tools/demo_video.sh
+```
+
+이미 push한 고정 이미지로 시연하려면 `ROUTER_IMAGE`에 digest 주소를
+지정합니다.
+
+```console
+ROUTER_IMAGE='ghcr.io/ACCOUNT/IMAGE@sha256:DIGEST' \
+  bash tools/demo_video.sh
+```
+
 공개 Train·Dev 입력 생성 방법은 [공식 데이터 안내](data/README.md)를
 따릅니다.
 
 ## 학습 artifact 재현
 
-학습용 NumPy, SciPy, scikit-learn은 제출 이미지에 포함되지 않습니다.
+학습용 NumPy, SciPy, scikit-lean은 제출 이미지에 포함되지 않습니다.
 
 ```console
 python3 -m venv .venv-train
@@ -266,7 +300,7 @@ PYTHONPATH=src .venv-train/bin/python tools/train_semantic_lagrangian.py \
 ```
 
 동결 artifact SHA-256은
-`98b7be45f3e81c08b812b839023b1547a16b4ffc8598af63aaa9933bf1e6a052`입니다.
+`ca50aacbfd3f0fc32e82f33ce7f63db581f0c34febdc9b1df7c5af2cabd98d0e`입니다.
 원천 입력·outcome·정책 해시와 라이선스는
 [`SEMANTIC_LAGRANGIAN.md`](docs/SEMANTIC_LAGRANGIAN.md)에 기록했습니다.
 
@@ -276,6 +310,7 @@ PYTHONPATH=src .venv-train/bin/python tools/train_semantic_lagrangian.py \
 src/ossp_router/semantic_lagrangian.py      제출 라우터와 CLI
 src/ossp_router/resources/                  공식 정책과 동결 artifact
 tools/train_semantic_lagrangian.py          Train-only 학습 파이프라인
+tools/compile_runtime_projection.py         동일 선형모델의 런타임 행렬곱 결합
 tools/create_technical_submission.py        기술 제출 JSON 생성기
 reports/verified-public-summary.json        회귀·라우팅 검증 결과
 docs/SEMANTIC_LAGRANGIAN.md                 설계와 provenance

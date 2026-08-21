@@ -17,6 +17,8 @@ from ossp_router.semantic_lagrangian import (
     _episode_text,
     _load_artifact,
     _numeric_features,
+    _predict_one,
+    _predict_one_reference,
     main,
     make_submission,
 )
@@ -73,6 +75,21 @@ class SemanticLagrangianTest(unittest.TestCase):
         self.assertEqual(110, len(artifact["feature_mean"]))
         self.assertEqual(0.85, artifact["routing"]["headroom_factor"])
         self.assertEqual(46, len(_numeric_features("Solve 2+2.", 1)))
+
+    def test_fused_runtime_projection_matches_reference_predictions(self) -> None:
+        artifact = _load_artifact()
+        self.assertIn("runtime_projection", artifact)
+        for episode in _batch().episodes:
+            text, message_count = _episode_text(episode)
+            optimized = _predict_one(text, message_count, artifact)
+            reference = _predict_one_reference(text, message_count, artifact)
+            for optimized_values, reference_values in zip(optimized, reference):
+                for optimized_value, reference_value in zip(
+                    optimized_values, reference_values
+                ):
+                    self.assertAlmostEqual(
+                        optimized_value, reference_value, delta=1e-9
+                    )
 
     def test_ids_and_order_do_not_change_content_decisions(self) -> None:
         original = _batch()

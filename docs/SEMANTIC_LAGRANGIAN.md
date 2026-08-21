@@ -30,13 +30,19 @@ Lagrangian relaxation은 비용 제약에 가격 `lambda`를 붙입니다. 주�
 ## 특징과 회귀기
 
 - 의미 특징: Train에서 학습한 TF-IDF 단어 1-gram·2-gram 8,000개를
-  TruncatedSVD로 줄인 64차원 LSA 임베딩
+  TruncatedSVD로 줄인 64차원 LSA 잠재 표현
 - 수치 특징: 문자·UTF-8 byte·단어·문장·행·메시지 수, 숫자, 문장부호,
   기호, 수학·코드 비율, 한글·영문·CJK 비율, 질문·지시문, task·난이도 등 46개
 - 최종 특징: 110차원
 - 예측기: 각 모델별 Ridge 회귀기 세 종류(점수, log1p 입력 토큰,
   log1p 출력 토큰), `alpha=10`
 - 고정 seed: `20260819`
+
+런타임에서는 학습된 `StandardScaler`, 64차원 SVD와 9개 Ridge 선형변환의
+행렬곱을 artifact에 미리 저장해 동일한 예측을 더 적은 곱셈으로 계산합니다.
+프롬프트별 예측만 공식 2코어에 맞춰 두 프로세스로 나누고, 비용 계산과
+Lagrangian 선택은 기존과 같이 부모 프로세스에서 한 번 수행합니다. 이 최적화는
+특징 정의, 회귀 가중치, 예산 또는 모델 선택 규칙을 변경하지 않습니다.
 
 비용은 공식 v1 정책 그대로 계산합니다.
 
@@ -61,11 +67,16 @@ Lagrangian relaxation은 비용 제약에 가격 `lambda`를 붙입니다. 주�
 | materialized Train 입력 | `029a0fb1f70432a05b837a1291d86d42278bb202d808a6a12911b0dae8628ac4` |
 | Train outcome | `0a35c1ce83e074ffc8e470d5c4f49d35765371384ecff3db91bad9de4ef2ffe7` |
 | raw 비용 정책 파일 | `07f1131caf1e6924b0516e9d24270d7faea8837dcc0231053e6f02ad66212fae` |
-| 생성 artifact | `98b7be45f3e81c08b812b839023b1547a16b4ffc8598af63aaa9933bf1e6a052` |
+| 최적화 전 학습 artifact | `98b7be45f3e81c08b812b839023b1547a16b4ffc8598af63aaa9933bf1e6a052` |
+| 제출용 runtime artifact | `ca50aacbfd3f0fc32e82f33ce7f63db581f0c34febdc9b1df7c5af2cabd98d0e` |
 
-artifact 크기는 11,838,722 bytes입니다. 원천 데이터의 라이선스와 출처는
+artifact 크기는 13,377,037 bytes입니다. 원천 데이터의 라이선스와 출처는
 [`DATA_LICENSES.md`](../DATA_LICENSES.md)와
 [`THIRD_PARTY_NOTICES.md`](../THIRD_PARTY_NOTICES.md)를 따릅니다.
+
+제출용 runtime artifact는 학습 artifact에
+`tools/compile_runtime_projection.py`의 결정적인 선형변환 결합 결과만 추가한
+파일입니다. 학습 데이터, 특징, Ridge 계수와 비용 보정값은 변경하지 않습니다.
 
 학습에만 NumPy 2.3.3, SciPy 1.16.2, scikit-learn 1.7.2를 사용하며 모두
 BSD-3-Clause 계열 허용 라이선스입니다. 이 패키지들은 제출 이미지에 들어가지

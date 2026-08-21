@@ -1,7 +1,7 @@
 # SPDX-FileCopyrightText: Copyright 2026 SK TELECOM CO., LTD.
 # SPDX-License-Identifier: Apache-2.0
 
-"""Train the frozen LSA semantic embedding and per-model Ridge heads."""
+"""Train the frozen LSA representation and per-model Ridge heads."""
 
 from __future__ import annotations
 
@@ -14,10 +14,10 @@ from pathlib import Path
 
 import numpy as np
 from sklearn.decomposition import TruncatedSVD
+from sklearn.feature_extraction.text import TfidfVectorizer
 from sklearn.linear_model import Ridge
 from sklearn.model_selection import KFold
 from sklearn.preprocessing import StandardScaler
-from sklearn.feature_extraction.text import TfidfVectorizer
 
 from ossp_router.semantic_lagrangian import MODEL_IDS, _numeric_features
 
@@ -141,7 +141,9 @@ def main() -> int:
         dtype=np.float64,
     )
     tfidf = vectorizer.fit_transform(texts)
-    dimensions = min(args.embedding_dimensions, tfidf.shape[0] - 1, tfidf.shape[1] - 1)
+    dimensions = min(
+        args.embedding_dimensions, tfidf.shape[0] - 1, tfidf.shape[1] - 1
+    )
     svd = TruncatedSVD(n_components=dimensions, n_iter=7, random_state=SEED)
     embeddings = svd.fit_transform(tfidf)
     numeric = np.asarray(
@@ -240,7 +242,9 @@ def main() -> int:
             "lowercase": True,
             "sublinear_tf": True,
             "norm": "l2",
-            "vocabulary": {term: int(index) for term, index in vocabulary.items()},
+            "vocabulary": {
+                term: int(index) for term, index in vocabulary.items()
+            },
             "idf": [float(value) for value in vectorizer.idf_],
             "components_by_feature": [
                 [float(value) for value in row] for row in components_by_feature

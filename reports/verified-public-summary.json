@@ -3,7 +3,7 @@
   "report_type": "semantic-lagrangian-public-train-dev-summary",
   "official_repository_commit": "3cccbf602077a846c13b2cb1356eee1559a631db",
   "policy_id": "ossp-2026-prompt-router-v1",
-  "artifact_sha256": "98b7be45f3e81c08b812b839023b1547a16b4ffc8598af63aaa9933bf1e6a052",
+  "artifact_sha256": "ca50aacbfd3f0fc32e82f33ce7f63db581f0c34febdc9b1df7c5af2cabd98d0e",
   "train_oof_regression_metrics": {
     "ax31-light": {
       "score": {"mae": 0.3443542097634884, "rmse": 0.41101911473953223, "r2": 0.20849496263585288},
@@ -43,5 +43,25 @@
       "local_runtime_seconds": {"fast": 6.392, "balanced": 6.497, "premium": 6.762}
     }
   },
-  "runtime_environment": "Windows development host; not official linux/arm64 container"
+  "optimized_arm64_emulation_validation": {
+    "environment": "linux/arm64 image under x86_64 emulation; not official native Apple Silicon",
+    "resource_limits": {
+      "cpus": 2,
+      "memory": "2g",
+      "memory_swap": "2g",
+      "pids_limit": 32,
+      "ipc": "none",
+      "network": "none",
+      "read_only_root": true,
+      "tmpfs": "256m"
+    },
+    "dev_runtime_seconds": {
+      "fast": 63.06,
+      "balanced": 62.63,
+      "premium": 62.38
+    },
+    "all_tiers_under_90_seconds": true,
+    "decisions_identical_to_verified_public_results": true
+  },
+  "runtime_environment": "Original routing metrics: Windows development host. Optimized runtime validation: emulated linux/arm64 container."
 }
