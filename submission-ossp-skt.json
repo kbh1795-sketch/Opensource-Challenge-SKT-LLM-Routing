@@ -2,7 +2,7 @@
   "schema_version": 1,
   "challenge_id": "ossp-2026-llm-router-challenge",
   "repository_url": "https://github.com/kbh1795-sketch/Opensource-Challenge-SKT-LLM-Routing",
-  "commit_sha": "aa7617f069b296c942a3cffeda0ca5d2b8a414fe",
-  "image_digest": "ghcr.io/kbh1795-sketch/opensource-challenge-skt-llm-routing@sha256:e0f4ea2d145566c997e48d70bb0a2c69f08a9c043a1ad74c995454bc6d3e6c8d",
+  "commit_sha": "5d08342a796080db692350f064537f59b98468ce",
+  "image_digest": "ghcr.io/kbh1795-sketch/opensource-challenge-skt-llm-routing@sha256:54ff39b434fed31a225627f3a3ba409ba1576dd8807641ce583f8a950c1d8f2b",
   "primary_license": "Apache-2.0"
 }
